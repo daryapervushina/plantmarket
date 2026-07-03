@@ -1,15 +1,9 @@
-/* ============================================================
-   storage.js — обмен данными с сервером через REST API.
-   Данные хранятся в SQLite на сервере.
-   Пользователь определяется по уникальному X-Device-Token.
-   ============================================================ */
-
 const Store = {
-  // Получить или сгенерировать токен устройства
   _getToken() {
     let token = localStorage.getItem("pc_device_token");
     if (!token) {
-      token = "dev_" + Math.random().toString(36).slice(2, 11) + "_" + Date.now();
+      token =
+        "dev_" + Math.random().toString(36).slice(2, 11) + "_" + Date.now();
       localStorage.setItem("pc_device_token", token);
     }
     return token;
@@ -22,7 +16,6 @@ const Store = {
     };
   },
 
-  // БД (snake_case) -> фронтенд (camelCase) для записи личного списка
   _mapFromDb(row) {
     if (!row) return null;
     return {
@@ -38,7 +31,6 @@ const Store = {
     };
   },
 
-  // фронтенд -> БД
   _mapToDb(patch) {
     const out = {};
     if (patch.customName !== undefined) out.custom_name = patch.customName;
@@ -53,12 +45,10 @@ const Store = {
     return out;
   },
 
-  /* ---------- Справочник ---------- */
   async getCatalog() {
     try {
       const res = await fetch("/api/plants");
       const data = await res.json();
-      // Приводим поля справочника к тем же именам, что в data.js
       return data.map((p) => ({
         id: p.id,
         name: p.name,
@@ -78,11 +68,10 @@ const Store = {
     }
   },
 
-  /* ---------- Избранное ---------- */
   async getFavorites() {
     try {
       const res = await fetch("/api/favorites", { headers: this._headers() });
-      return await res.json(); // массив id: [1, 2, 5...]
+      return await res.json();
     } catch (e) {
       console.warn("Не удалось получить избранное:", e);
       return [];
@@ -110,7 +99,6 @@ const Store = {
     }
   },
 
-  /* ---------- Личный список ---------- */
   async getMyPlants() {
     try {
       const res = await fetch("/api/my-plants", { headers: this._headers() });
@@ -172,11 +160,10 @@ const Store = {
     }
   },
 
-  /* ---------- Профиль (имя для чата) ---------- */
   async getMe() {
     try {
       const res = await fetch("/api/me", { headers: this._headers() });
-      return await res.json(); // { id, displayName }
+      return await res.json();
     } catch (e) {
       console.warn("Не удалось получить профиль:", e);
       return { id: null, displayName: "Гость" };
@@ -197,7 +184,6 @@ const Store = {
     }
   },
 
-  /* ---------- Аккаунт (синхронизация между устройствами) ---------- */
   async register(username, password) {
     try {
       const res = await fetch("/api/auth/register", {
@@ -207,9 +193,9 @@ const Store = {
       });
       const data = await res.json();
       if (data.ok && data.token) {
-        localStorage.setItem("pc_device_token", data.token); // становимся этим аккаунтом
+        localStorage.setItem("pc_device_token", data.token);
       }
-      return data; // { ok, token, username } или { error }
+      return data;
     } catch (e) {
       return { error: "Ошибка сети" };
     }
@@ -224,7 +210,7 @@ const Store = {
       });
       const data = await res.json();
       if (data.ok && data.token) {
-        localStorage.setItem("pc_device_token", data.token); // переключаемся на аккаунт
+        localStorage.setItem("pc_device_token", data.token);
       }
       return data;
     } catch (e) {
@@ -232,13 +218,12 @@ const Store = {
     }
   },
 
-  // Выход: просто берём новый анонимный токен (данные аккаунта остаются на сервере)
   logout() {
-    const fresh = "dev_" + Math.random().toString(36).slice(2, 11) + "_" + Date.now();
+    const fresh =
+      "dev_" + Math.random().toString(36).slice(2, 11) + "_" + Date.now();
     localStorage.setItem("pc_device_token", fresh);
   },
 
-  /* ---------- Обмен растениями ---------- */
   async getListings() {
     try {
       const res = await fetch("/api/exchange", { headers: this._headers() });
@@ -254,7 +239,7 @@ const Store = {
       const res = await fetch("/api/exchange", {
         method: "POST",
         headers: this._headers(),
-        body: JSON.stringify(data), // { plantId, title, description, wants }
+        body: JSON.stringify(data),
       });
       return await res.json();
     } catch (e) {
@@ -265,7 +250,9 @@ const Store = {
 
   async getListing(id) {
     try {
-      const res = await fetch(`/api/exchange/${id}`, { headers: this._headers() });
+      const res = await fetch(`/api/exchange/${id}`, {
+        headers: this._headers(),
+      });
       return await res.json();
     } catch (e) {
       console.warn("Не удалось открыть объявление:", e);
@@ -289,16 +276,20 @@ const Store = {
 
   async deleteListing(id) {
     try {
-      await fetch(`/api/exchange/${id}`, { method: "DELETE", headers: this._headers() });
+      await fetch(`/api/exchange/${id}`, {
+        method: "DELETE",
+        headers: this._headers(),
+      });
     } catch (e) {
       console.error("Не удалось удалить объявление:", e);
     }
   },
 
-  // Отклики на моё объявление (список диалогов)
   async getConversations(listingId) {
     try {
-      const res = await fetch(`/api/exchange/${listingId}/conversations`, { headers: this._headers() });
+      const res = await fetch(`/api/exchange/${listingId}/conversations`, {
+        headers: this._headers(),
+      });
       return await res.json();
     } catch (e) {
       console.warn("Не удалось получить отклики:", e);
@@ -306,7 +297,6 @@ const Store = {
     }
   },
 
-  // Откликнуться на чужое объявление — получить/создать диалог с владельцем
   async openConversation(listingId) {
     try {
       const res = await fetch(`/api/exchange/${listingId}/open`, {
@@ -321,10 +311,11 @@ const Store = {
     }
   },
 
-  // Диалог + сообщения
   async getConversation(cid) {
     try {
-      const res = await fetch(`/api/conversations/${cid}`, { headers: this._headers() });
+      const res = await fetch(`/api/conversations/${cid}`, {
+        headers: this._headers(),
+      });
       if (!res.ok) return null;
       return await res.json();
     } catch (e) {
@@ -335,7 +326,9 @@ const Store = {
 
   async getConversationMessages(cid) {
     try {
-      const res = await fetch(`/api/conversations/${cid}/messages`, { headers: this._headers() });
+      const res = await fetch(`/api/conversations/${cid}/messages`, {
+        headers: this._headers(),
+      });
       if (!res.ok) return [];
       return await res.json();
     } catch (e) {
