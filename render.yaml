@@ -1,0 +1,26 @@
+# Render Blueprint — деплой одним нажатием.
+# В панели Render: New → Blueprint → указать репозиторий с этим файлом.
+services:
+  - type: web
+    name: plant-care
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Раскомментируйте, если подключите постоянный диск (см. ниже):
+      # - key: DATA_DIR
+      #   value: /var/data
+
+    # ВНИМАНИЕ ПРО ДАННЫЕ:
+    # На бесплатном плане диск эфемерный — база SQLite обнуляется при
+    # перезапуске/передеплое. Для сохранения данных нужен постоянный диск
+    # (доступен на платных инстансах). Тогда раскомментируйте блок ниже
+    # и переменную DATA_DIR выше.
+    #
+    # disk:
+    #   name: plant-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Оранжерея — помощник по уходу за растениями</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- ВАЖНО: все файлы лежат в одной папке, поэтому пути без css/ и js/ -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Шапка -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🪴</span>
+      <div>
+        <span class="brand-name">Оранжерея</span>
+        <span class="brand-tag">помощник по уходу за растениями</span>
+      </div>
+    </div>
+
+    <nav class="tabs" aria-label="Разделы">
+      <button class="tab is-active" data-view="catalog">Справочник</button>
+      <button class="tab" data-view="mine">Мой список</button>
+      <button class="tab" data-view="favorites">Избранное</button>
+      <button class="tab" data-view="exchange">Обмен</button>
+      <button class="tab tab--tasks" data-view="tasks">
+        Уведомления
+        <span id="task-badge" class="badge is-hidden">0</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- Справочник -->
+    <section id="view-catalog" class="view is-active">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title">Справочник растений</h1>
+          <p class="view-desc">Откройте карточку, чтобы узнать, как поливать, куда ставить и чем растение опасно.</p>
+        </div>
+        <div class="search">
+          <input id="search" type="search" placeholder="Поиск: монстера, aloe…" aria-label="Поиск растения">
+        </div>
+      </div>
+      <div id="catalog-grid" class="grid"></div>
+    </section>
+
+    <!-- Мой список -->
+    <section id="view-mine" class="view">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title">Мой список</h1>
+          <p class="view-desc">Ваша коллекция. Настройте интервалы полива, добавьте заметки и отмечайте уход.</p>
+        </div>
+      </div>
+      <div id="mine-list" class="stack"></div>
+    </section>
+
+    <!-- Избранное -->
+    <section id="view-favorites" class="view">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title">Избранное</h1>
+          <p class="view-desc">Растения, которые вы отметили, чтобы вернуться к ним позже.</p>
+        </div>
+      </div>
+      <div id="favorites-grid" class="grid"></div>
+    </section>
+
+    <!-- Обмен растениями -->
+    <section id="view-exchange" class="view">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title">Обмен растениями</h1>
+          <p class="view-desc">Разместите растение, укажите, что хотите взамен, и договоритесь в чате.</p>
+        </div>
+        <button id="new-listing" class="btn btn--primary">Разместить растение</button>
+      </div>
+
+      <div class="profile-bar">
+        <span class="profile-label">Ваше имя в чате:</span>
+        <input id="my-name" type="text" maxlength="40" placeholder="Гость" aria-label="Ваше имя в чате">
+        <button id="save-name" class="btn btn--ghost btn--small">Сохранить</button>
+        <span id="name-saved" class="profile-saved"></span>
+      </div>
+
+      <div id="exchange-list" class="stack"></div>
+    </section>
+
+    <!-- Уведомления -->
+    <section id="view-tasks" class="view">
+      <div class="view-head">
+        <div>
+          <h1 class="view-title">Уведомления</h1>
+          <p class="view-desc">Что требует внимания в вашей коллекции прямо сейчас.</p>
+        </div>
+        <button id="enable-push" class="btn btn--ghost">Включить push-уведомления</button>
+      </div>
+      <div id="tasks-list" class="stack"></div>
+    </section>
+
+  </main>
+
+  <!-- Модальное окно карточки -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Карточка растения">
+      <button id="modal-close" class="modal-close" aria-label="Закрыть">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Скрипты: порядок важен, пути без js/ -->
+  <script src="data.js"></script>
+  <script src="storage.js"></script>
+  <script src="notifications.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
