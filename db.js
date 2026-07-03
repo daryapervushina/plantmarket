@@ -34,6 +34,20 @@ if (isNew) {
   }
 }
 
+// Мягкая миграция: если база создана старой версией — добавим новые поля.
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`Миграция: добавлен столбец ${table}.${column}`);
+  }
+}
+ensureColumn("users", "username", "TEXT");
+ensureColumn("users", "password_hash", "TEXT");
+db.exec(
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL"
+);
+
 // Найти пользователя по токену устройства или создать нового
 function getOrCreateUser(deviceToken) {
   if (!deviceToken) deviceToken = "anonymous";

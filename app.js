@@ -434,6 +434,9 @@ function bindEvents() {
   // Обмен: кнопка «Разместить растение»
   $("#new-listing").addEventListener("click", openNewListingForm);
 
+  // Аккаунт
+  $("#account-btn").addEventListener("click", openAccountModal);
+
   // Обмен: сохранить имя в чате
   $("#save-name").addEventListener("click", async () => {
     const name = $("#my-name").value.trim();
@@ -449,6 +452,12 @@ function bindEvents() {
     if (e.key === "Enter" && e.target.id === "chat-input") {
       e.preventDefault();
       sendChatMessage();
+    }
+    // Вход/регистрация по Enter в поле пароля
+    if (e.key === "Enter" && e.target.id === "auth-password") {
+      e.preventDefault();
+      const submit = $("#auth-submit");
+      if (submit) submitAuth(submit.dataset.mode || "login");
     }
   });
 
@@ -555,6 +564,22 @@ function bindEvents() {
         hideModal();
         renderExchange();
       }
+      return;
+    }
+
+    /* ----- Аккаунт ----- */
+    const authTab = e.target.closest("[data-auth-tab]");
+    if (authTab) {
+      switchAuthTab(authTab.dataset.authTab);
+      return;
+    }
+    const authSubmit = e.target.closest("#auth-submit");
+    if (authSubmit) {
+      await submitAuth(authSubmit.dataset.mode || "login");
+      return;
+    }
+    if (e.target.closest("#logout-btn")) {
+      await doLogout();
       return;
     }
   });
@@ -840,10 +865,105 @@ function stopChatPolling() {
 
 
 /* ============================================================
+   АККАУНТ (синхронизация между устройствами)
+   ============================================================ */
+async function updateAccountLabel() {
+  const me = await Store.getMe();
+  const btn = $("#account-btn");
+  if (!btn) return;
+  btn.textContent = me.username ? "👤 " + me.username : "Войти";
+}
+
+async function openAccountModal() {
+  const me = await Store.getMe();
+
+  if (me.username) {
+    $("#modal-body").innerHTML = `
+      <h2 class="detail-title" style="margin-bottom:8px">Аккаунт</h2>
+      <p class="view-desc" style="margin-bottom:18px">Вы вошли как <strong>${esc(me.username)}</strong>. Списки, избранное и напоминания доступны на любом устройстве после входа этим логином.</p>
+      <div class="detail-actions">
+        <button class="btn btn--danger" id="logout-btn">Выйти</button>
+      </div>`;
+    showModal();
+    return;
+  }
+
+  $("#modal-body").innerHTML = `
+    <h2 class="detail-title" style="margin-bottom:6px">Вход и регистрация</h2>
+    <p class="view-desc" style="margin-bottom:16px">Войдите одним логином на телефоне и компьютере — данные будут синхронизироваться между устройствами.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab is-on" data-auth-tab="login">Вход</button>
+      <button class="auth-tab" data-auth-tab="register">Регистрация</button>
+    </div>
+    <div class="form-grid" style="margin-top:14px">
+      <label class="fld"><span>Логин</span>
+        <input id="auth-username" type="text" autocomplete="username" placeholder="например, anna">
+      </label>
+      <label class="fld"><span>Пароль</span>
+        <input id="auth-password" type="password" autocomplete="current-password" placeholder="минимум 4 символа">
+      </label>
+      <div class="detail-actions">
+        <button id="auth-submit" class="btn btn--primary" data-mode="login">Войти</button>
+      </div>
+      <p id="auth-error" class="form-error"></p>
+    </div>`;
+  showModal();
+  setTimeout(() => $("#auth-username") && $("#auth-username").focus(), 50);
+}
+
+function switchAuthTab(mode) {
+  document.querySelectorAll(".auth-tab").forEach((t) =>
+    t.classList.toggle("is-on", t.dataset.authTab === mode)
+  );
+  const submit = $("#auth-submit");
+  if (submit) {
+    submit.dataset.mode = mode;
+    submit.textContent = mode === "register" ? "Зарегистрироваться" : "Войти";
+  }
+  const err = $("#auth-error");
+  if (err) err.textContent = "";
+}
+
+async function submitAuth(mode) {
+  const username = $("#auth-username").value.trim();
+  const password = $("#auth-password").value;
+  const errEl = $("#auth-error");
+  errEl.textContent = "";
+  if (!username || !password) {
+    errEl.textContent = "Заполните логин и пароль.";
+    return;
+  }
+
+  const data =
+    mode === "register"
+      ? await Store.register(username, password)
+      : await Store.login(username, password);
+
+  if (!data || data.error) {
+    errEl.textContent = (data && data.error) || "Не удалось выполнить.";
+    return;
+  }
+
+  hideModal();
+  await updateAccountLabel();
+  toast(mode === "register" ? "Аккаунт создан — вы вошли." : "Вы вошли.");
+  await render(); // подтягиваем данные аккаунта на текущую вкладку
+}
+
+async function doLogout() {
+  Store.logout();
+  hideModal();
+  await updateAccountLabel();
+  toast("Вы вышли.");
+  await render();
+}
+
+/* ============================================================
    СТАРТ
    ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
   bindEvents();
+  updateAccountLabel(); // показать, вошёл ли пользователь
 
   // Пробуем взять справочник с сервера. Если сервер недоступен —
   // остаётся встроенный список из data.js (window.PLANTS).

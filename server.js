@@ -7,10 +7,26 @@
    ============================================================ */
 
 const express = require("express");
+const crypto = require("crypto");
 const { db, getOrCreateUser } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Хеширование пароля через встроенный scrypt (без внешних пакетов)
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(":")) return false;
+  const [salt, hash] = stored.split(":");
+  const test = crypto.scryptSync(password, salt, 64).toString("hex");
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(test, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -22,10 +38,16 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-/* ---------------- Профиль (имя для чата) ---------------- */
+/* ---------------- Профиль и аккаунт ---------------- */
 app.get("/api/me", (req, res) => {
-  const u = db.prepare("SELECT id, display_name FROM users WHERE id = ?").get(req.user.id);
-  res.json({ id: u.id, displayName: u.display_name || "Гость" });
+  const u = db
+    .prepare("SELECT id, display_name, username FROM users WHERE id = ?")
+    .get(req.user.id);
+  res.json({
+    id: u.id,
+    displayName: u.display_name || "Гость",
+    username: u.username || null, // null → вошёл как гость
+  });
 });
 
 app.patch("/api/me", (req, res) => {
@@ -33,6 +55,42 @@ app.patch("/api/me", (req, res) => {
   if (!name) return res.status(400).json({ error: "Пустое имя" });
   db.prepare("UPDATE users SET display_name = ? WHERE id = ?").run(name, req.user.id);
   res.json({ ok: true, displayName: name });
+});
+
+// Регистрация: «превращаем» текущего анонимного пользователя в аккаунт,
+// сохраняя все его нынешние списки и избранное.
+app.post("/api/auth/register", (req, res) => {
+  const username = (req.body.username || "").toString().trim().toLowerCase().slice(0, 32);
+  const password = (req.body.password || "").toString();
+  if (username.length < 3) return res.status(400).json({ error: "Логин не короче 3 символов" });
+  if (password.length < 4) return res.status(400).json({ error: "Пароль не короче 4 символов" });
+
+  const taken = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+  if (taken) return res.status(409).json({ error: "Такой логин уже занят" });
+
+  db.prepare(
+    `UPDATE users
+       SET username = ?, password_hash = ?,
+           display_name = CASE WHEN display_name IS NULL OR display_name = 'Гость'
+                               THEN ? ELSE display_name END
+     WHERE id = ?`
+  ).run(username, hashPassword(password), username, req.user.id);
+
+  const u = db.prepare("SELECT device_token, username FROM users WHERE id = ?").get(req.user.id);
+  res.json({ ok: true, token: u.device_token, username: u.username });
+});
+
+// Вход: возвращаем токен аккаунта. Клиент начинает использовать его как
+// X-Device-Token — и получает те же данные на любом устройстве.
+app.post("/api/auth/login", (req, res) => {
+  const username = (req.body.username || "").toString().trim().toLowerCase();
+  const password = (req.body.password || "").toString();
+
+  const u = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+  if (!u || !verifyPassword(password, u.password_hash))
+    return res.status(401).json({ error: "Неверный логин или пароль" });
+
+  res.json({ ok: true, token: u.device_token, username: u.username });
 });
 
 /* ---------------- Справочник ---------------- */

@@ -197,6 +197,47 @@ const Store = {
     }
   },
 
+  /* ---------- Аккаунт (синхронизация между устройствами) ---------- */
+  async register(username, password) {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: this._headers(),
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.ok && data.token) {
+        localStorage.setItem("pc_device_token", data.token); // становимся этим аккаунтом
+      }
+      return data; // { ok, token, username } или { error }
+    } catch (e) {
+      return { error: "Ошибка сети" };
+    }
+  },
+
+  async login(username, password) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: this._headers(),
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.ok && data.token) {
+        localStorage.setItem("pc_device_token", data.token); // переключаемся на аккаунт
+      }
+      return data;
+    } catch (e) {
+      return { error: "Ошибка сети" };
+    }
+  },
+
+  // Выход: просто берём новый анонимный токен (данные аккаунта остаются на сервере)
+  logout() {
+    const fresh = "dev_" + Math.random().toString(36).slice(2, 11) + "_" + Date.now();
+    localStorage.setItem("pc_device_token", fresh);
+  },
+
   /* ---------- Обмен растениями ---------- */
   async getListings() {
     try {

@@ -29,16 +29,24 @@ CREATE TABLE plants (
 
 -- ------------------------------------------------------------
 -- 2. Пользователи
---    Аккаунт с паролем не обязателен: для синхронизации между
---    устройствами достаточно уникального токена устройства.
+--    device_token — «сессионный» токен. У анонимного пользователя он
+--    случайный и свой на каждом устройстве. Если пользователь
+--    регистрируется (username + пароль), этот токен становится
+--    ключом аккаунта: войдя на другом устройстве, клиент получает тот
+--    же токен и видит те же данные — так работает синхронизация.
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS users;
 CREATE TABLE users (
-  id           INTEGER PRIMARY KEY,
-  device_token TEXT    NOT NULL UNIQUE,   -- генерируется клиентом при первом запуске
-  display_name TEXT,
-  created_at   TEXT    DEFAULT (datetime('now'))   -- MySQL: DATETIME DEFAULT CURRENT_TIMESTAMP
+  id            INTEGER PRIMARY KEY,
+  device_token  TEXT    NOT NULL UNIQUE,   -- токен сессии/аккаунта
+  display_name  TEXT,
+  username      TEXT,                       -- логин (NULL у анонимных)
+  password_hash TEXT,                       -- соль:хеш (scrypt)
+  created_at    TEXT    DEFAULT (datetime('now'))
 );
+
+-- Логин уникален только среди зарегистрированных (у анонимных username = NULL)
+CREATE UNIQUE INDEX idx_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- ------------------------------------------------------------
 -- 3. Избранное (многие-ко-многим: пользователь ↔ растение)
