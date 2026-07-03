@@ -30,6 +30,46 @@ function plural(n, one, few, many) {
 }
 const daysWord = (n) => plural(n, "день", "дня", "дней");
 
+// Короткая всплывающая подсказка внизу экрана
+function toast(msg) {
+  let el = document.getElementById("toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("is-show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("is-show"), 4500);
+}
+
+/* ---------- Периодическая проверка задач для уведомлений ---------- */
+let reminderLoopId = null;
+let lastReminderSig = "";
+
+async function reminderTick() {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  await refreshMyPlants(); // свежие данные из БД
+  const tasks = Care.buildTasks();
+  if (tasks.length === 0) {
+    lastReminderSig = "";
+    return;
+  }
+  // Не повторяем уведомление, пока набор задач не изменился
+  const sig = tasks.map((t) => t.type + t.entryId).sort().join("|");
+  if (sig === lastReminderSig) return;
+  lastReminderSig = sig;
+  Care.pushDueTasks();
+}
+
+function startReminderLoop() {
+  reminderTick();
+  if (reminderLoopId) return;
+  reminderLoopId = setInterval(reminderTick, 15 * 60 * 1000); // каждые 15 минут
+}
+
 let currentView = "catalog";
 
 /* ============================================================
@@ -363,12 +403,32 @@ function bindEvents() {
   });
 
   $("#enable-push").addEventListener("click", async () => {
-    const ok = await Care.requestPermission();
-    if (ok) {
-      Care.pushDueTasks();
-      $("#enable-push").textContent = "Уведомления включены";
-      $("#enable-push").disabled = true;
+    const btn = $("#enable-push");
+    const res = await Care.requestPermission();
+
+    if (res.ok) {
+      btn.textContent = "Уведомления включены";
+      btn.disabled = true;
+      const r = Care.pushDueTasks();
+      if (r.tasks === 0) {
+        toast("Уведомления включены. Задач пока нет — напомним, когда придёт срок.");
+      } else if (r.shown) {
+        toast("Уведомления включены.");
+      } else {
+        toast("Уведомления включены, но всплывающее окно недоступно на этом устройстве.");
+      }
+      startReminderLoop();
+      return;
     }
+
+    const reasons = {
+      unsupported: "Этот браузер не поддерживает уведомления.",
+      insecure: "Уведомления работают только по защищённому соединению (https).",
+      denied: "Уведомления заблокированы. Разрешите их в настройках сайта — значок замка слева в адресной строке → Уведомления → Разрешить.",
+      dismissed: "Вы не разрешили уведомления. Нажмите кнопку ещё раз и выберите «Разрешить» (в Chrome запрос может быть значком-колокольчиком справа в адресной строке).",
+      error: "Не удалось запросить разрешение на уведомления.",
+    };
+    toast(reasons[res.reason] || "Не удалось включить уведомления.");
   });
 
   // Обмен: кнопка «Разместить растение»
@@ -790,6 +850,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const serverCatalog = await Store.getCatalog();
   if (serverCatalog && serverCatalog.length > 0) {
     window.PLANTS = serverCatalog;
+  }
+
+  // Если уведомления уже разрешены — сразу отражаем это и запускаем проверку
+  if ("Notification" in window && Notification.permission === "granted") {
+    const btn = $("#enable-push");
+    if (btn) {
+      btn.textContent = "Уведомления включены";
+      btn.disabled = true;
+    }
+    startReminderLoop();
   }
 
   switchView("catalog");

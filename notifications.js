@@ -87,28 +87,52 @@ const Care = {
   },
 
   /* ---------- Браузерные push-уведомления ---------- */
+  // Возвращает { ok, reason } — reason объясняет, почему не получилось
   async requestPermission() {
-    if (!("Notification" in window)) {
-      alert("Ваш браузер не поддерживает уведомления.");
-      return false;
+    if (!("Notification" in window)) return { ok: false, reason: "unsupported" };
+    if (!window.isSecureContext) return { ok: false, reason: "insecure" };
+
+    let perm = Notification.permission;
+    if (perm === "default") {
+      try {
+        perm = await Notification.requestPermission();
+      } catch (e) {
+        return { ok: false, reason: "error" };
+      }
     }
-    const perm = await Notification.requestPermission();
-    return perm === "granted";
+    if (perm === "granted") return { ok: true };
+    if (perm === "denied") return { ok: false, reason: "denied" };
+    return { ok: false, reason: "dismissed" };
   },
 
+  // Показать одно системное уведомление. true — если удалось.
+  notify(title, body) {
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body,
+          icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🪴%3C/text%3E%3C/svg%3E",
+        });
+        return true;
+      }
+    } catch (e) {
+      // Некоторые мобильные браузеры требуют service worker — тихо игнорируем
+      console.warn("Уведомление не показано:", e);
+    }
+    return false;
+  },
+
+  // Показать уведомление по текущим задачам. Возвращает { tasks, shown }.
   pushDueTasks() {
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
     const tasks = this.buildTasks();
-    if (tasks.length === 0) return;
+    if (tasks.length === 0) return { tasks: 0, shown: false };
 
     const actions = tasks
       .map((t) => (t.type === "water" ? "полить " : "пересадить ") + t.plantName)
       .join(", ");
 
-    new Notification("Уход за растениями", {
-      body: `Пора: ${actions}`,
-      icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🪴%3C/text%3E%3C/svg%3E",
-    });
+    const shown = this.notify("Уход за растениями", `Пора: ${actions}`);
+    return { tasks: tasks.length, shown };
   },
 };
 
