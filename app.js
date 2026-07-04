@@ -1,17 +1,18 @@
-/* ============================================================
-   app.js — точка входа. Управляет вкладками и отрисовкой.
-   Асинхронная работа с сервером через REST API (Store).
-   Личный список кэшируется в Care, чтобы задачи и бейдж
-   считались синхронно.
-   ============================================================ */
-
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function esc(str) {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
+  return String(str ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c],
+  );
 }
 
 function ruDate(iso) {
@@ -30,7 +31,6 @@ function plural(n, one, few, many) {
 }
 const daysWord = (n) => plural(n, "день", "дня", "дней");
 
-// Короткая всплывающая подсказка внизу экрана
 function toast(msg) {
   let el = document.getElementById("toast");
   if (!el) {
@@ -45,20 +45,22 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("is-show"), 4500);
 }
 
-/* ---------- Периодическая проверка задач для уведомлений ---------- */
 let reminderLoopId = null;
 let lastReminderSig = "";
 
 async function reminderTick() {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-  await refreshMyPlants(); // свежие данные из БД
+  if (!("Notification" in window) || Notification.permission !== "granted")
+    return;
+  await refreshMyPlants();
   const tasks = Care.buildTasks();
   if (tasks.length === 0) {
     lastReminderSig = "";
     return;
   }
-  // Не повторяем уведомление, пока набор задач не изменился
-  const sig = tasks.map((t) => t.type + t.entryId).sort().join("|");
+  const sig = tasks
+    .map((t) => t.type + t.entryId)
+    .sort()
+    .join("|");
   if (sig === lastReminderSig) return;
   lastReminderSig = sig;
   Care.pushDueTasks();
@@ -67,22 +69,22 @@ async function reminderTick() {
 function startReminderLoop() {
   reminderTick();
   if (reminderLoopId) return;
-  reminderLoopId = setInterval(reminderTick, 15 * 60 * 1000); // каждые 15 минут
+  reminderLoopId = setInterval(reminderTick, 15 * 60 * 1000);
 }
 
 let currentView = "catalog";
 
-/* ============================================================
-   ВКЛАДКИ И ОБНОВЛЕНИЕ
-   ============================================================ */
 function switchView(view) {
   currentView = view;
-  $$(".tab").forEach((t) => t.classList.toggle("is-active", t.dataset.view === view));
-  $$(".view").forEach((v) => v.classList.toggle("is-active", v.id === "view-" + view));
+  $$(".tab").forEach((t) =>
+    t.classList.toggle("is-active", t.dataset.view === view),
+  );
+  $$(".view").forEach((v) =>
+    v.classList.toggle("is-active", v.id === "view-" + view),
+  );
   render();
 }
 
-// Подтягиваем личный список с сервера и кладём в кэш Care
 async function refreshMyPlants() {
   const list = await Store.getMyPlants();
   Care.setMyPlants(list);
@@ -90,7 +92,7 @@ async function refreshMyPlants() {
 }
 
 async function render() {
-  await refreshMyPlants(); // держим кэш свежим для задач и бейджа
+  await refreshMyPlants();
   if (currentView === "catalog") await renderCatalog();
   if (currentView === "mine") renderMine();
   if (currentView === "favorites") await renderFavorites();
@@ -106,33 +108,32 @@ function updateBadge() {
   badge.classList.toggle("is-hidden", n === 0);
 }
 
-/* ============================================================
-   ЗНАЧКИ (inline SVG)
-   ============================================================ */
 const ICON = {
-  water: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 6-11 6-11z"/></svg>',
+  water:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 6-11 6-11z"/></svg>',
   sun: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2"/></svg>',
   pot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14l-1.5 11h-11L5 9zM4 6h16v3H4z"/></svg>',
-  skull: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-5 14v3h10v-3a8 8 0 0 0-5-14z"/><circle cx="9" cy="12" r="1.4" fill="#fff"/><circle cx="15" cy="12" r="1.4" fill="#fff"/></svg>',
+  skull:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-5 14v3h10v-3a8 8 0 0 0-5-14z"/><circle cx="9" cy="12" r="1.4" fill="#fff"/><circle cx="15" cy="12" r="1.4" fill="#fff"/></svg>',
   leaf: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4C10 4 4 10 4 20c10 0 16-6 16-16zM7 17C11 11 15 9 18 8"/></svg>',
-  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6L21 9.3l-4.5 4.3 1.1 6.2L12 17l-5.6 2.8 1.1-6.2L3 9.3l6.4-.7L12 3z"/></svg>'
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6L21 9.3l-4.5 4.3 1.1 6.2L12 17l-5.6 2.8 1.1-6.2L3 9.3l6.4-.7L12 3z"/></svg>',
 };
 
-/* ============================================================
-   СПРАВОЧНИК
-   ============================================================ */
 async function renderCatalog() {
   const q = ($("#search").value || "").trim().toLowerCase();
   const plants = window.PLANTS || [];
   const filtered = plants.filter(
     (p) =>
       p.name.toLowerCase().includes(q) ||
-      (p.latin || "").toLowerCase().includes(q)
+      (p.latin || "").toLowerCase().includes(q),
   );
 
   const grid = $("#catalog-grid");
   if (filtered.length === 0) {
-    grid.innerHTML = emptyState("Ничего не нашлось", "Попробуйте другое название растения.");
+    grid.innerHTML = emptyState(
+      "Ничего не нашлось",
+      "Попробуйте другое название растения.",
+    );
     return;
   }
 
@@ -160,9 +161,6 @@ function diffClass(d) {
   return d === "Новичок" ? "easy" : d === "Средне" ? "mid" : "hard";
 }
 
-/* ============================================================
-   КАРТОЧКА РАСТЕНИЯ (модальное окно)
-   ============================================================ */
 async function openPlant(plantId) {
   const p = (window.PLANTS || []).find((x) => x.id === plantId);
   if (!p) return;
@@ -212,9 +210,6 @@ function careRow(icon, label, text) {
     </div>`;
 }
 
-/* ============================================================
-   МОЙ СПИСОК (читает кэш Care._myPlants)
-   ============================================================ */
 function renderMine() {
   const list = Care._myPlants;
   const wrap = $("#mine-list");
@@ -222,7 +217,7 @@ function renderMine() {
   if (list.length === 0) {
     wrap.innerHTML = emptyState(
       "Список пуст",
-      "Откройте справочник и добавьте растения, за которыми ухаживаете."
+      "Откройте справочник и добавьте растения, за которыми ухаживаете.",
     );
     return;
   }
@@ -237,9 +232,11 @@ function renderMine() {
       const nextW = Care.nextWaterDate(entry);
       const overdue = Care.daysBetween(nextW, Care.today());
       const statusText =
-        overdue > 0 ? `Просрочен на ${overdue} ${daysWord(overdue)}` :
-        overdue === 0 ? "Пора поливать сегодня" :
-        `Полить через ${-overdue} ${daysWord(-overdue)}`;
+        overdue > 0
+          ? `Просрочен на ${overdue} ${daysWord(overdue)}`
+          : overdue === 0
+            ? "Пора поливать сегодня"
+            : `Полить через ${-overdue} ${daysWord(-overdue)}`;
       const statusClass = overdue >= 0 ? "danger" : "ok";
 
       return `
@@ -295,9 +292,6 @@ function renderMine() {
     .join("");
 }
 
-/* ============================================================
-   ИЗБРАННОЕ
-   ============================================================ */
 async function renderFavorites() {
   const favIds = await Store.getFavorites();
   const wrap = $("#favorites-grid");
@@ -306,7 +300,7 @@ async function renderFavorites() {
   if (favPlants.length === 0) {
     wrap.innerHTML = emptyState(
       "Избранное пусто",
-      "Нажмите на звёздочку у растения в справочнике, чтобы сохранить его."
+      "Нажмите на звёздочку у растения в справочнике, чтобы сохранить его.",
     );
     return;
   }
@@ -322,14 +316,11 @@ async function renderFavorites() {
         <div class="plant-meta">
           <span class="chip chip--${diffClass(p.difficulty)}">${esc(p.difficulty)}</span>
         </div>
-      </article>`
+      </article>`,
     )
     .join("");
 }
 
-/* ============================================================
-   ЗАДАЧИ / УВЕДОМЛЕНИЯ (читает кэш)
-   ============================================================ */
 function renderTasks() {
   const tasks = Care.buildTasks();
   const wrap = $("#tasks-list");
@@ -337,7 +328,7 @@ function renderTasks() {
   if (tasks.length === 0) {
     wrap.innerHTML = emptyState(
       "Всё под контролем",
-      "Сейчас нет растений, требующих внимания. Загляните позже."
+      "Сейчас нет растений, требующих внимания. Загляните позже.",
     );
     return;
   }
@@ -364,9 +355,6 @@ function renderTasks() {
     .join("");
 }
 
-/* ============================================================
-   ПУСТЫЕ СОСТОЯНИЯ + МОДАЛКА
-   ============================================================ */
 function emptyState(title, text) {
   return `
     <div class="empty">
@@ -383,14 +371,13 @@ function showModal() {
 function hideModal() {
   $("#modal").classList.remove("is-open");
   document.body.style.overflow = "";
-  stopChatPolling(); // на случай, если был открыт чат обмена
+  stopChatPolling();
 }
 
-/* ============================================================
-   ОБРАБОТЧИКИ СОБЫТИЙ (делегирование)
-   ============================================================ */
 function bindEvents() {
-  $$(".tab").forEach((t) => t.addEventListener("click", () => switchView(t.dataset.view)));
+  $$(".tab").forEach((t) =>
+    t.addEventListener("click", () => switchView(t.dataset.view)),
+  );
 
   $("#search").addEventListener("input", renderCatalog);
 
@@ -411,11 +398,15 @@ function bindEvents() {
       btn.disabled = true;
       const r = Care.pushDueTasks();
       if (r.tasks === 0) {
-        toast("Уведомления включены. Задач пока нет — напомним, когда придёт срок.");
+        toast(
+          "Уведомления включены. Задач пока нет — напомним, когда придёт срок.",
+        );
       } else if (r.shown) {
         toast("Уведомления включены.");
       } else {
-        toast("Уведомления включены, но всплывающее окно недоступно на этом устройстве.");
+        toast(
+          "Уведомления включены, но всплывающее окно недоступно на этом устройстве.",
+        );
       }
       startReminderLoop();
       return;
@@ -423,21 +414,21 @@ function bindEvents() {
 
     const reasons = {
       unsupported: "Этот браузер не поддерживает уведомления.",
-      insecure: "Уведомления работают только по защищённому соединению (https).",
-      denied: "Уведомления заблокированы. Разрешите их в настройках сайта — значок замка слева в адресной строке → Уведомления → Разрешить.",
-      dismissed: "Вы не разрешили уведомления. Нажмите кнопку ещё раз и выберите «Разрешить» (в Chrome запрос может быть значком-колокольчиком справа в адресной строке).",
+      insecure:
+        "Уведомления работают только по защищённому соединению (https).",
+      denied:
+        "Уведомления заблокированы. Разрешите их в настройках сайта — значок замка слева в адресной строке → Уведомления → Разрешить.",
+      dismissed:
+        "Вы не разрешили уведомления. Нажмите кнопку ещё раз и выберите «Разрешить» (в Chrome запрос может быть значком-колокольчиком справа в адресной строке).",
       error: "Не удалось запросить разрешение на уведомления.",
     };
     toast(reasons[res.reason] || "Не удалось включить уведомления.");
   });
 
-  // Обмен: кнопка «Разместить растение»
   $("#new-listing").addEventListener("click", openNewListingForm);
 
-  // Аккаунт
   $("#account-btn").addEventListener("click", openAccountModal);
 
-  // Обмен: сохранить имя в чате
   $("#save-name").addEventListener("click", async () => {
     const name = $("#my-name").value.trim();
     if (!name) return;
@@ -447,13 +438,11 @@ function bindEvents() {
     setTimeout(() => (saved.textContent = ""), 2000);
   });
 
-  // Обмен: отправка сообщения по Enter
   document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.id === "chat-input") {
       e.preventDefault();
       sendChatMessage();
     }
-    // Вход/регистрация по Enter в поле пароля
     if (e.key === "Enter" && e.target.id === "auth-password") {
       e.preventDefault();
       const submit = $("#auth-submit");
@@ -462,7 +451,6 @@ function bindEvents() {
   });
 
   document.addEventListener("click", async (e) => {
-    // Звезда «избранное»
     const favBtn = e.target.closest("[data-fav]");
     if (favBtn) {
       e.stopPropagation();
@@ -470,13 +458,11 @@ function bindEvents() {
       await render();
       return;
     }
-    // Открыть карточку
     const card = e.target.closest(".plant-card");
     if (card) {
       await openPlant(Number(card.dataset.id));
       return;
     }
-    // Добавить в мой список (из модалки)
     const addBtn = e.target.closest("[data-add]");
     if (addBtn) {
       await Store.addMyPlant(Number(addBtn.dataset.add));
@@ -484,7 +470,6 @@ function bindEvents() {
       switchView("mine");
       return;
     }
-    // Звезда в модалке
     const favModal = e.target.closest("[data-fav-modal]");
     if (favModal) {
       const id = Number(favModal.dataset.favModal);
@@ -492,21 +477,18 @@ function bindEvents() {
       await openPlant(id);
       return;
     }
-    // Удалить из моего списка
     const rm = e.target.closest("[data-remove]");
     if (rm) {
       await Store.removeMyPlant(rm.dataset.remove);
       await render();
       return;
     }
-    // Полил сегодня
     const water = e.target.closest("[data-water]");
     if (water) {
       await Store.markWatered(water.dataset.water);
       await render();
       return;
     }
-    // Задача выполнена
     const done = e.target.closest("[data-done]");
     if (done) {
       const entryId = done.dataset.done;
@@ -519,44 +501,39 @@ function bindEvents() {
       return;
     }
 
-    /* ----- Обмен ----- */
-    // Отправить объявление (кнопка в форме)
     if (e.target.closest("#listing-submit")) {
       await submitListing();
       return;
     }
-    // Открыть отклики на моё объявление
     const resp = e.target.closest("[data-responders]");
     if (resp) {
       await openResponders(Number(resp.dataset.responders));
       return;
     }
-    // Написать владельцу чужого объявления (создаётся/открывается диалог)
     const write = e.target.closest("[data-write]");
     if (write) {
       const cid = await Store.openConversation(Number(write.dataset.write));
       if (cid) await openConversation(cid);
       return;
     }
-    // Открыть конкретный диалог из списка откликов
     const openConv = e.target.closest("[data-open-conv]");
     if (openConv) {
       await openConversation(Number(openConv.dataset.openConv));
       return;
     }
-    // Отправить сообщение
     if (e.target.closest("#chat-send")) {
       await sendChatMessage();
       return;
     }
-    // Сменить статус объявления (кнопки на карточке владельца)
     const seg = e.target.closest("[data-listing-status]");
     if (seg) {
-      await Store.setListingStatus(Number(seg.dataset.listingStatus), seg.dataset.status);
+      await Store.setListingStatus(
+        Number(seg.dataset.listingStatus),
+        seg.dataset.status,
+      );
       await renderExchange();
       return;
     }
-    // Удалить объявление (владелец)
     const delL = e.target.closest("[data-delete-listing]");
     if (delL) {
       if (confirm("Удалить объявление вместе со всеми диалогами?")) {
@@ -567,7 +544,6 @@ function bindEvents() {
       return;
     }
 
-    /* ----- Аккаунт ----- */
     const authTab = e.target.closest("[data-auth-tab]");
     if (authTab) {
       switchAuthTab(authTab.dataset.authTab);
@@ -584,7 +560,6 @@ function bindEvents() {
     }
   });
 
-  // Изменение полей в «моём списке»
   $("#mine-list").addEventListener("change", onMineFieldChange);
   $("#mine-list").addEventListener("input", (e) => {
     if (e.target.matches('[data-field="customName"], [data-field="notes"]')) {
@@ -602,13 +577,21 @@ async function onMineFieldChange(e) {
 
   let value;
   if (e.target.type === "checkbox") value = e.target.checked;
-  else if (e.target.type === "number") value = Math.max(1, Number(e.target.value) || 1);
+  else if (e.target.type === "number")
+    value = Math.max(1, Number(e.target.value) || 1);
   else value = e.target.value;
 
   await Store.updateMyPlant(entryId, { [field]: value });
 
   // Поля, влияющие на расписание, требуют пересчёта статуса и бейджа
-  if (["waterIntervalDays", "lastWatered", "nextTransplant", "remindersOn"].includes(field)) {
+  if (
+    [
+      "waterIntervalDays",
+      "lastWatered",
+      "nextTransplant",
+      "remindersOn",
+    ].includes(field)
+  ) {
     await refreshMyPlants();
     renderMine();
     updateBadge();
@@ -620,10 +603,14 @@ async function onMineFieldChange(e) {
    Модель: на каждое объявление — отдельный диалог с каждым
    откликнувшимся. Сверху «Мои объявления», снизу «Другие».
    ============================================================ */
-let chatPollId = null;    // таймер опроса диалога
+let chatPollId = null; // таймер опроса диалога
 let currentConvId = null; // id открытого диалога
 
-const STATUS_LABEL = { open: "Открыто", reserved: "Зарезервировано", closed: "Закрыто" };
+const STATUS_LABEL = {
+  open: "Открыто",
+  reserved: "Зарезервировано",
+  closed: "Закрыто",
+};
 
 async function renderExchange() {
   // Имя в профиле (не затираем, если пользователь сейчас печатает)
@@ -639,11 +626,17 @@ async function renderExchange() {
 
   const mineHtml = mine.length
     ? mine.map((l) => listingCardMine(l)).join("")
-    : emptyState("У вас нет объявлений", "Нажмите «Разместить растение», чтобы предложить растение к обмену.");
+    : emptyState(
+        "У вас нет объявлений",
+        "Нажмите «Разместить растение», чтобы предложить растение к обмену.",
+      );
 
   const othersHtml = others.length
     ? others.map((l) => listingCardOther(l)).join("")
-    : emptyState("Пока нет чужих объявлений", "Здесь появятся растения, которые предлагают другие пользователи.");
+    : emptyState(
+        "Пока нет чужих объявлений",
+        "Здесь появятся растения, которые предлагают другие пользователи.",
+      );
 
   $("#exchange-list").innerHTML = `
     <h2 class="group-title">Мои объявления</h2>
@@ -657,7 +650,10 @@ function listingCardMine(l) {
   const emoji = l.plant_emoji || "🪴";
   const plantLine = l.plant_name ? ` · ${esc(l.plant_name)}` : "";
   const segs = ["open", "reserved", "closed"]
-    .map((s) => `<button class="seg ${l.status === s ? "is-on" : ""}" data-listing-status="${l.id}" data-status="${s}">${STATUS_LABEL[s]}</button>`)
+    .map(
+      (s) =>
+        `<button class="seg ${l.status === s ? "is-on" : ""}" data-listing-status="${l.id}" data-status="${s}">${STATUS_LABEL[s]}</button>`,
+    )
     .join("");
   return `
     <article class="card listing-card">
@@ -767,7 +763,7 @@ async function openResponders(listingId) {
             <span class="conv-last">${esc(c.last_body || "")}</span>
           </span>
           <span class="conv-count">${c.message_count}</span>
-        </button>`
+        </button>`,
         )
         .join("")
     : `<p class="chat-empty">Пока никто не написал по этому объявлению.</p>`;
@@ -826,7 +822,7 @@ function renderMessages(messages) {
       <div class="msg ${m.mine ? "msg--mine" : "msg--other"}">
         ${m.mine ? "" : `<span class="msg-author">${esc(m.author_name || "Гость")}</span>`}
         <p class="msg-body">${esc(m.body)}</p>
-      </div>`
+      </div>`,
     )
     .join("");
   box.dataset.count = String(messages.length);
@@ -862,7 +858,6 @@ function stopChatPolling() {
   }
   currentConvId = null;
 }
-
 
 /* ============================================================
    АККАУНТ (синхронизация между устройствами)
@@ -912,9 +907,9 @@ async function openAccountModal() {
 }
 
 function switchAuthTab(mode) {
-  document.querySelectorAll(".auth-tab").forEach((t) =>
-    t.classList.toggle("is-on", t.dataset.authTab === mode)
-  );
+  document
+    .querySelectorAll(".auth-tab")
+    .forEach((t) => t.classList.toggle("is-on", t.dataset.authTab === mode));
   const submit = $("#auth-submit");
   if (submit) {
     submit.dataset.mode = mode;
